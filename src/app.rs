@@ -1,60 +1,107 @@
 // Copyright (c) 2023 Ethan Uppal. All rights reserved.
 
-pub mod io {
-    /// Prints the help message for the calculator app.
-    #[rustfmt::skip]
-    pub fn print_help(name: &str) {
-        println!("A calculator app in rust.");
-        println!();
-        println!("usage: {}                  Begins the calculator app", name);
-        println!("   or: {} -h|--help        Prints this help", name);
-        println!("   or: {} -v|--version     Prints versioning information", name);
-    }
-
-    /// Prints the versioning information for the calculator app.
-    #[rustfmt::skip]
-    pub fn print_version() {
-        println!("A calculator app in rust. Copyright (c) 2023 Ethan Uppal. All rights reserved.");
-    }
+/// The calculator app.
+/// Create with
+/// ```
+/// mod app;
+/// let app = app::from_args();
+/// ```
+pub struct App {
+    /// The program arguments. Invariant: non-empty.
+    args: Vec<String>,
 }
 
-mod calc {
-    use std::{error::Error, fmt};
+/// Creates a new app from the program arguments.
+pub fn from_args() -> App {
+    use std::env;
 
-    /// A binary operation.
-    pub enum Op {
-        Add,
-        Sub,
+    let args: Vec<String> = env::args().collect();
+    assert!(!args.is_empty());
+    App { args: args }
+}
+
+pub fn from_given_args(args: Vec<String>) -> App {
+    assert!(!args.is_empty());
+    App { args: args }
+}
+
+impl App {
+    /// Returns the executable name of the app.
+    pub fn name(&self) -> &str {
+        // The first argument should be the program that was invoked from the
+        // shell. This is true in most cases.
+        return self.args[0].as_str();
     }
 
-    #[derive(Debug)]
-    pub struct ExprParseError<'a> {
-        /// The invalid expression we tried to parse.
-        source: &'a str,
-
-        /// The number of tokens left on the stack.
-        remaining: i32,
-    }
-
-    impl<'a> Error for ExprParseError<'a> {}
-
-    impl<'a> fmt::Display for ExprParseError<'a> {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "Parsing failed for expression '{}' ({} token(s) left on the stack)., ", self.source, self.remaining)
+    /// Runs the given code or prints help and versioning info, depending on the
+    /// arguments passed.
+    pub fn run(&self, main: fn(&App) -> ()) {
+        if self.args.len() == 1 {
+            main(self);
+        } else {
+            match self.args.iter().map(|s| s.as_str()).collect::<Vec<&str>>()
+                [1..]
+            {
+                ["-v"] | ["--version"] => {
+                    self.print_description();
+                    println!();
+                    self.print_version()
+                }
+                ["-h"] | ["--help"] => {
+                    self.print_description();
+                    println!();
+                    self.print_help()
+                }
+                _ => self.print_arg_error("Unknown argument."),
+            }
         }
     }
 
-    /// An expression tree.
-    pub enum Expr {
-        Num(f64),
-        Bin(Box<Expr>, Op, Box<Expr>),
+    /// Prints a short description of the app.
+    pub fn print_description(&self) {
+        println!("A calculator app in rust.");
     }
 
-    /// Parses the expression `source` and returns an expression tree.
-    pub fn parse(source: &str) -> Result<Expr, ExprParseError> {
-        Err(ExprParseError {
-            source: "test",
-            remaining: 0,
-        })
+    /// Prints the help message for the app.
+    #[rustfmt::skip]
+    pub fn print_help(&self) {
+        println!("usage: {}                  Begins the calculator app", self.name());
+        println!("   or: {} -h|--help        Prints this help", self.name());
+        println!("   or: {} -v|--version     Prints versioning information", self.name());
+    }
+
+    /// Prints the versioning information for the app.
+    #[rustfmt::skip]
+    pub fn print_version(&self) {
+        println!("Copyright (c) 2023 Ethan Uppal. All rights reserved.");
+    }
+
+    /// Prints an error message with the given under a given context.
+    ///
+    /// Example:
+    /// ```
+    /// app.print_error("parse", "Mismatched types.");
+    /// ```
+    pub fn print_error(&self, ctx: &str, msg: &str) {
+        eprintln!("{} error: {}", ctx, msg);
+    }
+
+    /// Logs an argument-parsing error to the console.
+    pub fn print_arg_error(&self, msg: &str) {
+        self.print_error("arg", msg);
+        eprintln!("(invocation: '{}')", self.args.join(" "));
+        eprintln!();
+        self.print_help();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::app;
+
+    #[test]
+    #[should_panic]
+    fn empty_args() {
+        let _app = app::from_given_args(vec![]);
     }
 }
